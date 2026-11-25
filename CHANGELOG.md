@@ -5,6 +5,25 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 25.11.2026 — E-534: Kundenportal FIAON Global — „Nachrichten“ statt „Anfragen“, zwei Knöpfe ganz oben, Sprung zum Upload
+
+- **Anlass:** Ein Firmenkunde war im Portal eingeloggt und schrieb trotzdem per Mail, er finde keine Möglichkeit, weitere
+  Angaben zu machen. Schreiben ging bisher nur über „Ihr Büro › Anfragen“, der Upload lag ganz unten im Tresor.
+- **Fix (Justins Wahl):** Ganz oben in der blauen Bühne der Übersicht stehen zwei Knöpfe: „Nachricht schreiben“ öffnet die
+  Seite „Nachrichten“ mit dem Schreibfeld (Fokus darin), „Unterlage hochladen“ springt im Tresor direkt zum Upload-Feld, das
+  kurz aufleuchtet (erscheint, sobald der Dokumentenraum offen ist; bei storniertem Auftrag keine Knöpfe). Im Tresor steht
+  derselbe Knopf oben neben der Überschrift. „Anfragen“ heißt für den Kunden jetzt „Nachrichten“ (EN „Messages“) — im Menü,
+  in der Überschrift, im Fenster „Neu für Sie“, in der Info-Mail („Neue Antwort auf Ihre Nachricht“) und im Fachbereich-Dialog.
+  „Für Sie zu tun“ (Unterlage fehlt / bitte neu) springt ebenfalls direkt zum Upload. Die Zeilen im Menü sagen „1 Nachricht“,
+  „1 Dokument“, „1 Brief“ richtig; ohne Nachricht steht dort „Schreiben Sie uns“. Nichts wurde entfernt.
+- **Für Mails:** Der Portal-Link mit `#nachrichten` am Ende öffnet die Nachrichten, mit `#hochladen` das Upload-Feld — auch,
+  wenn sich der Kunde erst anmelden muss. Alte Links mit `#anfragen` gehen weiter. Das Chefbüro behält den Reiter „Anfragen“.
+- **Wo:** `client/src/pages/global-portal.tsx`, `client/src/styles/global-portal-glas.css`, `client/src/styles/global-portal.css`,
+  `client/src/pages/global-portal-fach.tsx`, `shared/fiaon-global-neuigkeiten.ts`, Rückweg nach der Anmeldung
+  `client/src/components/site/GlobalKontoLeiste.tsx` + `shared/fiaon-global-konto.ts`, Rundgänge Global-Kunden und
+  Global-Mandate (`client/src/pages/agent/rundgaenge.ts`), Prüfstände `scripts/pruef-portal-neuigkeiten.ts` (Block 9),
+  `scripts/pruef-global-login.ts`.
+
 ## 25.11.2026 — E-533 Nachtrag: EINE Kopfleiste für Startseite und Unterseiten — am PC „Linie · ein Menü“
 
 - **Wunsch:** Justin: „Ich möchte auch für den PC eine andere Menüleiste bitte — gebe mir hierfür 3 Vorschläge, damit sie

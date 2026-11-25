@@ -124,7 +124,8 @@ const TX = {
   post: { titel: (n: number): Paar => (n === 1 ? { de: "Neue Post für Ihre Gesellschaft", en: "New mail for your company" } : { de: `${n} neue Briefe für Ihre Gesellschaft`, en: `${n} new letters for your company` }), satz: { de: "Für Sie eingescannt — in Ihrem Briefkasten.", en: "Scanned for you — in your mailbox." } },
   unterschrift: { titel: (x: string): Paar => ({ de: `Bitte unterschreiben: ${x}`, en: `Please sign: ${x}` }), allein: { de: "Ein Dokument wartet auf Ihre Unterschrift", en: "A document is waiting for your signature" }, satz: { de: "Liegt bereit — Sie unterschreiben direkt hier im Portal.", en: "Ready for you — sign directly here in the portal." } },
   bitteNeu: { titel: (x: string): Paar => ({ de: `Bitte neu einreichen: ${x}`, en: `Please submit again: ${x}` }), satz: { de: "Laden Sie die Unterlage bitte noch einmal im Tresor hoch.", en: "Please upload the document again in your vault." } },
-  antwort: { titel: (n: number): Paar => (n === 1 ? { de: "Neue Antwort auf Ihre Anfrage", en: "New reply to your request" } : { de: `${n} neue Antworten auf Ihre Anfragen`, en: `${n} new replies to your requests` }), satz: { de: "Von Ihrem Ansprechpartner — im Gesprächsverlauf.", en: "From your contact — in the conversation." } },
+  // E-534 (25.11.2026): Die Seite heißt im Portal „Nachrichten“ — Fenster und Info-Mail sagen dasselbe Wort.
+  antwort: { titel: (n: number): Paar => (n === 1 ? { de: "Neue Antwort auf Ihre Nachricht", en: "New reply to your message" } : { de: `${n} neue Antworten auf Ihre Nachrichten`, en: `${n} new replies to your messages` }), satz: { de: "Von Ihrem Ansprechpartner — im Gesprächsverlauf.", en: "From your contact — in the conversation." } },
 } as const;
 
 // Die Stationen in den Worten des Kunden (wie „Ihr Weg" im Portal) — Titel der „Erledigt"/„Beantragt"-Neuigkeiten.

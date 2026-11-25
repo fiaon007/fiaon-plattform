@@ -144,6 +144,23 @@
 .gp-glas .gp-glaspille[class*="st-"]::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .8); }
 .gp-glas .gp-glaspille.st-gestartet::before, .gp-glas .gp-glaspille.st-bezahlt::before { background: #7cf0b9; box-shadow: 0 0 8px rgba(124, 240, 185, .8); }
 .gp-glas .gp-glaspille.st-offen::before { background: #fcd34d; }
+/* ── E-534: Die zwei Wege in der Bühne — „Nachricht schreiben“ (weiß, der Hauptweg) und „Unterlage hochladen“ (Glas).
+   Größer und klarer als die Pillen darüber: Pillen zeigen einen Stand, diese Knöpfe tun etwas. Keine Icons (E-452). ── */
+.gp-glas .gp-sperr-wege { margin-top: 24px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; animation: gp-ein .9s var(--kurve) 1.2s both; }
+.gp-glas .gp-sperr-knopf {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 22px; border-radius: 999px; cursor: pointer;
+  font: 500 15px/1.2 var(--ap); letter-spacing: -.003em; color: #fff; text-align: center;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .1));
+  border: 1px solid rgba(255, 255, 255, .4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 14px 30px -20px rgba(3, 12, 40, .7);
+  -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+  transition: background .2s, transform .25s var(--kurve), box-shadow .25s;
+}
+.gp-glas .gp-sperr-knopf:hover { background: linear-gradient(160deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .16)); transform: translateY(-1px); }
+.gp-glas .gp-sperr-knopf.haupt { background: #fff; color: #123a8c; border-color: #fff; box-shadow: 0 16px 32px -18px rgba(3, 12, 40, .8); }
+.gp-glas .gp-sperr-knopf.haupt:hover { background: #eef4ff; }
+.gp-glas .gp-sperr-knopf:active { transform: scale(.98); }
+.gp-glas .gp-sperr-knopf:focus-visible { outline: 2px solid rgba(255, 255, 255, .9); outline-offset: 3px; }
 
 /* ── Die Widgets: Milchglas auf Blau ── */
 .gp-glas .gp-widgets {
@@ -277,6 +294,9 @@
   .gp-glas .gp-sperr { padding: calc(var(--gp-kopf) + 34px) 16px 22px; border-radius: 0 0 32px 32px; }
   .gp-glas .gp-name { font-size: min(clamp(34px, 9.2vw, 78px), calc((100vw - 32px) / (var(--lang) * .68))); }
   .gp-glas .gp-sperr-gruss { margin-top: 22px; }
+  /* E-534: am Telefon nebeneinander, gleich breit (ein Knopf = ganze Breite); lange Wörter brechen sauber um. */
+  .gp-glas .gp-sperr-wege { margin-top: 18px; width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+  .gp-glas .gp-sperr-knopf { min-height: 48px; padding: 6px 10px; font-size: 14.5px; }
   .gp-glas .gp-widgets { margin-top: 24px; gap: 10px; }
   .gp-glas .gp-widget { padding: 16px; border-radius: 22px; }
   .gp-glas .gp-w-satz { font-size: 18.5px; }

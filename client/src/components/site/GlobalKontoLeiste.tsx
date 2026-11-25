@@ -21,7 +21,9 @@ export const VORBELEGUNG_SCHLUESSEL = "fiaon_global_login_email";
 /** Zur Anmeldung, mit Rückweg zu genau diesem Auftrag (nur Pfade der Business-Welt, der Server prüft es noch einmal). */
 export function zurGlobalAnmeldung(s: "de" | "en", ref: string, email?: string | null): void {
   try { if (email) sessionStorage.setItem(VORBELEGUNG_SCHLUESSEL, email); } catch { /* ohne Speicher: leeres Feld */ }
-  const weiter = `${KONTO_PFADE[s].auftrag}/${encodeURIComponent(ref)}`;
+  // E-534: Eine Sprungmarke aus dem Link (#hochladen, #nachrichten) überlebt die Anmeldung — nur Kleinbuchstaben.
+  const marke = /^#[a-z]{2,20}$/.test(window.location.hash) ? window.location.hash : "";
+  const weiter = `${KONTO_PFADE[s].auftrag}/${encodeURIComponent(ref)}${marke}`;
   window.location.replace(`${KONTO_PFADE[s].login}?weiter=${encodeURIComponent(weiter)}`);
 }
 

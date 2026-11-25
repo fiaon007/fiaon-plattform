@@ -69,10 +69,23 @@ const GRUPPEN: { key: "uebersicht" | "weg" | "buero" | "kapital" | "vertrag" | "
   { key: "vertrag", direkt: "vertrag", seiten: ["vertrag"] },
   { key: "fach", seiten: ["strategie", "recht", "steuern"] },
 ];
-const seiteAusHash = (): PortalSeite => {
-  const h = (typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "") as PortalSeite;
-  return SEITEN.includes(h) ? h : "uebersicht";
+// E-534 (25.11.2026): Ein Kunde war eingeloggt und fand trotzdem keinen Weg, uns zu schreiben oder etwas nachzureichen.
+// Seither heißt die Seite für den Kunden „Nachrichten“, und die Bühne trägt die Knöpfe „Nachricht schreiben“ und
+// „Unterlage hochladen“. Ein Sprung führt nach dem Seitenwechsel direkt ans Ziel: „schreiben“ = das Schreibfeld der
+// Nachrichten, „ablage“ = das Upload-Feld im Tresor.
+type Sprung = "schreiben" | "ablage";
+// Die Adresse der Nachrichten bleibt #anfragen (alte Links und Mails). Dazu sprechende Sprungmarken für Mails:
+// #nachrichten öffnet die Nachrichten, #hochladen das Upload-Feld im Tresor (englisch #messages, #upload).
+const HASH_ALIAS: Record<string, { seite: PortalSeite; sprung?: Sprung }> = {
+  nachrichten: { seite: "anfragen" }, messages: { seite: "anfragen" },
+  hochladen: { seite: "tresor", sprung: "ablage" }, upload: { seite: "tresor", sprung: "ablage" },
 };
+const zielAusHash = (): { seite: PortalSeite; sprung?: Sprung } => {
+  const h = typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "";
+  if (SEITEN.includes(h as PortalSeite)) return { seite: h as PortalSeite };
+  return HASH_ALIAS[h.toLowerCase()] ?? { seite: "uebersicht" };
+};
+const seiteAusHash = (): PortalSeite => zielAusHash().seite;
 
 // ── Wörter des neuen Portals (DE/EN). Alles mit Gewicht kommt aus `t` (GLOBAL_AUFTRAG_WOERTER). ──
 const W = {
@@ -80,7 +93,8 @@ const W = {
     morgen: "Guten Morgen", tag: "Guten Tag", abend: "Guten Abend",
     navTitel: "Bereiche Ihres Portals", buero: "Ihr US-Büro", menue: "Menü",
     gruppen: { uebersicht: "Übersicht", weg: "Ihre Firma", buero: "Ihr Büro", kapital: "Kapital", vertrag: "Vertrag & Zahlung", fach: "Fachbereiche" } as Record<string, string>,
-    seiten: { uebersicht: "Übersicht", fahrplan: "Ihr Weg", gesellschaft: "Firmendaten", tresor: "Tresor", post: "Post", adressen: "Nummer & Adressen", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
+    // E-534: „anfragen“ heißt für den Kunden „Nachrichten“ (der Schlüssel bleibt — Adresse #anfragen, Mails, „Neu für Sie“).
+    seiten: { uebersicht: "Übersicht", fahrplan: "Ihr Weg", gesellschaft: "Firmendaten", tresor: "Tresor", post: "Post", adressen: "Nummer & Adressen", anfragen: "Nachrichten", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
     // E-452 (28.10.2026): Justin: „auch nicht sowas wie ‚Phase I von IV‘ — viel zu kompliziert, denk dich in den Kunden rein“.
     // Keine Phasen, Ziffern oder Zähler: EIN Satz, was gerade passiert, EIN Schritt für den Kunden, die Meilensteine in Alltagssprache.
     vorStart: "Vor dem Start", allesErledigt: "Alles erledigt",
@@ -133,7 +147,7 @@ const W = {
     naechsterLeer: "Wir melden uns mit dem nächsten Schritt.",
     tunTitel: "Für Sie zu tun", tunWeiter: "Weitere Schritte", tunLeer: "Alles erledigt — wir sind am Zug.",
     unterschriftTitel: (x: string) => `Bitte unterschreiben: ${x}`, unterschriftText: "Direkt hier, ohne Ausdrucken.", unterschreiben: "Jetzt unterschreiben",
-    antwortTitel: (n: string) => `Neue Antwort von ${n}`, antwortText: "Zu Ihrer Anfrage.", lesen: "Antwort lesen",
+    antwortTitel: (n: string) => `Neue Antwort von ${n}`, antwortText: "Zu Ihrer Nachricht.", lesen: "Antwort lesen",
     postTitel: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, postText: "Für Sie eingescannt.", oeffnen: "Öffnen",
     unterlagenTitel: (n: number) => n === 1 ? "Eine Unterlage fehlt noch" : `${n} Unterlagen fehlen noch`, unterlagenText: "Bitte im Tresor hochladen.", zumTresor: "Zum Tresor",
     // E-443 (28.10.2026): eine Unterlage, die wir neu brauchen — mit dem Grund aus dem Team.
@@ -148,7 +162,9 @@ const W = {
     hochladenTitel: "Unterlage hochladen", hochladenFeld: "Datei hierher ziehen oder auswählen", hochladenKlein: "PDF, JPG, PNG oder HEIC · bis 15 MB", art: "Was laden Sie hoch?", hochladen: "Hochladen", laedt: "Wird hochgeladen …",
     unterschrieben: (d: string) => `unterschrieben am ${d}`, wartet: "wartet auf Ihre Unterschrift",
     postFachTitel: "Ihr Briefkasten", postLead: GLOBAL_AGENT.de.post as string, postLeer: "Noch keine Post — neue Briefe erscheinen hier.", absender: "Absender", eingang: "Eingang",
-    anfragenTitel: "Ihre Anfragen", anfragenLead: (n: string) => `Schreiben Sie ${n} — die Antwort lesen Sie hier.`, anfragenLeer: "Noch keine Anfrage.", sie: "Sie", platzhalter: "Ihre Nachricht …", senden: "Senden", sendet: "Wird gesendet …",
+    anfragenTitel: "Ihre Nachrichten", anfragenLead: (n: string) => `Schreiben Sie ${n} — die Antwort lesen Sie hier.`, anfragenLeer: "Noch keine Nachricht.", sie: "Sie", platzhalter: "Ihre Nachricht …", senden: "Senden", sendet: "Wird gesendet …",
+    // E-534: die zwei Wege in der Bühne (Knopftexte: `schreiben`, `hochladenTitel`).
+    wegeTitel: "Schreiben und hochladen",
     kapitalTitel: "Banken & Kapital", kapitalLead: "Konto, Firmenkarten und Kreditrahmen — mit dem Stand jedes Antrags.", kapitalLeer: "Noch kein Antrag — jeder Schritt erscheint hier.", zugesagt: "Zugesagt und aktiv", beantragt: (d: string) => `beantragt ${d}`,
     fristenNachZahlung: "Der Kalender startet mit Ihrem Zahlungseingang.",
     fristenTitel: "Pflichten & Fristen", fristenLead: "Was wann fällig ist — wir erinnern Sie dreißig und sieben Tage vorher.", inTagen: (n: number) => n === 0 ? "heute" : n === 1 ? "morgen" : `in ${n} Tagen`, ueber: (n: number) => `seit ${n} ${n === 1 ? "Tag" : "Tagen"} fällig`,
@@ -167,7 +183,7 @@ const W = {
     morgen: "Good morning", tag: "Good afternoon", abend: "Good evening",
     navTitel: "Areas of your portal", buero: "Your US office", menue: "Menu",
     gruppen: { uebersicht: "Overview", weg: "Your company", buero: "Your office", kapital: "Capital", vertrag: "Contract & payment", fach: "Expert areas" } as Record<string, string>,
-    seiten: { uebersicht: "Overview", fahrplan: "Your path", gesellschaft: "Company details", tresor: "Vault", post: "Mail", adressen: "Number & addresses", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
+    seiten: { uebersicht: "Overview", fahrplan: "Your path", gesellschaft: "Company details", tresor: "Vault", post: "Mail", adressen: "Number & addresses", anfragen: "Messages", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
     vorStart: "Before the start", allesErledigt: "All done",
     jetztAuge: "Right now", fuerSie: "For you", nichtsTun: "There is nothing you need to do right now.",
     wegAnsehen: "See the whole path", laeuft: "under way", wegStartet: "Your path begins once your payment arrives.",
@@ -216,7 +232,7 @@ const W = {
     naechsterLeer: "We will be in touch with the next step.",
     tunTitel: "For you to do", tunWeiter: "Further steps", tunLeer: "All done — the next move is ours.",
     unterschriftTitel: (x: string) => `Please sign: ${x}`, unterschriftText: "Right here, no printing needed.", unterschreiben: "Sign now",
-    antwortTitel: (n: string) => `New reply from ${n}`, antwortText: "On your request.", lesen: "Read the reply",
+    antwortTitel: (n: string) => `New reply from ${n}`, antwortText: "In reply to your message.", lesen: "Read the reply",
     postTitel: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, postText: "Scanned for you.", oeffnen: "Open",
     unterlagenTitel: (n: number) => n === 1 ? "One document is still missing" : `${n} documents are still missing`, unterlagenText: "Please upload to your vault.", zumTresor: "Go to the vault",
     neuTitel: (x: string) => `Please submit again: ${x}`, bitteNeu: "Please submit again", neuGrund: (x: string) => `Needed again: ${x}`,
@@ -229,7 +245,8 @@ const W = {
     hochladenTitel: "Upload a document", hochladenFeld: "Drop a file here or choose one", hochladenKlein: "PDF, JPG, PNG or HEIC · max. 15 MB", art: "What are you uploading?", hochladen: "Upload", laedt: "Uploading …",
     unterschrieben: (d: string) => `signed on ${d}`, wartet: "awaiting your signature",
     postFachTitel: "Your mailbox", postLead: GLOBAL_AGENT.en.post as string, postLeer: "No mail yet — new letters appear here.", absender: "Sender", eingang: "Received",
-    anfragenTitel: "Your requests", anfragenLead: (n: string) => `Write to ${n} — you read the reply here.`, anfragenLeer: "No requests yet.", sie: "You", platzhalter: "Your message …", senden: "Send", sendet: "Sending …",
+    anfragenTitel: "Your messages", anfragenLead: (n: string) => `Write to ${n} — you read the reply here.`, anfragenLeer: "No messages yet.", sie: "You", platzhalter: "Your message …", senden: "Send", sendet: "Sending …",
+    wegeTitel: "Write and upload",
     kapitalTitel: "Banking & capital", kapitalLead: "Account, business cards and credit lines — with the status of every application.", kapitalLeer: "No application yet — every step appears here.", zugesagt: "Approved and active", beantragt: (d: string) => `applied for ${d}`,
     fristenNachZahlung: "The calendar starts once your payment has arrived.",
     fristenTitel: "Compliance & deadlines", fristenLead: "What is due when — we remind you thirty and seven days ahead.", inTagen: (n: number) => n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`, ueber: (n: number) => `due ${n} ${n === 1 ? "day" : "days"} ago`,
@@ -305,17 +322,47 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   // 22.10.2026: Die Seite gleitet in die Richtung, in der sie im Menü steht (vor = weiter rechts/unten, zurück = davor).
   const [richtung, setRichtung] = useState<"vor" | "zurueck">("vor");
   const wechsel = (z: PortalSeite) => setSeite((alt) => { setRichtung(SEITEN.indexOf(z) >= SEITEN.indexOf(alt) ? "vor" : "zurueck"); return z; });
+  // E-534: Ein Sprung wartet, bis die Zielseite steht (Schreibfeld der Nachrichten oder Upload-Feld im Tresor).
+  const [sprung, setSprung] = useState<Sprung | null>(() => zielAusHash().sprung ?? null);
   useEffect(() => {
-    const neu = () => wechsel(seiteAusHash());
+    const neu = () => { const z = zielAusHash(); wechsel(z.seite); if (z.sprung) setSprung(z.sprung); };
     window.addEventListener("hashchange", neu);
     return () => window.removeEventListener("hashchange", neu);
   }, []);
-  const geh = (ziel: PortalSeite | string) => {
+  const geh = (ziel: PortalSeite | string, sprungZiel?: Sprung) => {
     const z = (SEITEN.includes(ziel as PortalSeite) ? ziel : "uebersicht") as PortalSeite;
     if (window.location.hash !== `#${z}`) window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#${z}`);
     wechsel(z);
-    window.scrollTo({ top: 0, behavior: ruhig() ? "auto" : "smooth" });
+    // Mit Sprung scrollt die Seite zum Ziel statt nach oben.
+    if (sprungZiel) setSprung(sprungZiel);
+    else window.scrollTo({ top: 0, behavior: ruhig() ? "auto" : "smooth" });
   };
+  const schreibFeld = useRef<HTMLTextAreaElement>(null);
+  const ablageRef = useRef<HTMLDivElement>(null);
+  const [ablageBlick, setAblageBlick] = useState(false);
+  const springeZu = (ziel: Sprung) => {
+    // Ist der Dokumentenraum noch zu, zeigt der Sprung den Satz, wann er öffnet.
+    const el: HTMLElement | null = ziel === "schreiben" ? schreibFeld.current : (ablageRef.current ?? document.querySelector<HTMLElement>("[data-fiaon='tresor-upload-gesperrt']"));
+    if (!el) return;
+    el.scrollIntoView({ behavior: ruhig() ? "auto" : "smooth", block: "center" });
+    if (ziel === "schreiben") { schreibFeld.current?.focus({ preventScroll: true }); return; }
+    if (ablageRef.current) {
+      setAblageBlick(true);
+      // Der Fokus liegt auf der Dateiauswahl — mit der Tastatur öffnet Leertaste sie sofort.
+      ablageRef.current.querySelector<HTMLInputElement>("input[type=file]")?.focus({ preventScroll: true });
+    }
+  };
+  useEffect(() => {
+    if (!sprung) return;
+    const u = window.setTimeout(() => { springeZu(sprung); setSprung(null); }, 90);
+    return () => window.clearTimeout(u);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sprung, seite]);
+  useEffect(() => {
+    if (!ablageBlick) return;
+    const u = window.setTimeout(() => setAblageBlick(false), 1900);
+    return () => window.clearTimeout(u);
+  }, [ablageBlick]);
   useAuftauchen(`${a.ref}:${seite}`);
   const buehneOffen = useStartbuehneOffen();
   // Titel, „nicht indexieren" und Dokument-Scrollen (iOS blendet seine Leisten nur beim Scrollen des Dokuments aus).
@@ -495,13 +542,14 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   if (ungeleseneAntworten.length) tun.push({ key: "antwort", ton: "blau", titel: w.antwortTitel(ungeleseneAntworten[ungeleseneAntworten.length - 1].autor || apVorname), text: w.antwortText, knopf: w.lesen, aktion: () => zu("gp-anfragen") });
   if (postNeu.length) tun.push({ key: "post", ton: "", titel: w.postTitel(postNeu.length), text: w.postText, knopf: w.oeffnen, aktion: () => zu("gp-post") });
   // E-443 (28.10.2026): Fehlt eine Unterlage, weil wir sie neu brauchen, steht der Grund dabei; der Knopf wählt ihre Art vor.
+  // E-534: Der Knopf springt direkt zum Upload-Feld im Tresor (vorher: oben auf die Tresor-Seite, der Upload lag ganz unten).
   if (fehlend.length) tun.push({ key: "unterlagen", ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.abgelehnt?.grund ? `${u.titel} — ${u.abgelehnt.grund}` : u.titel).join(" · "), knopf: w.zumTresor, aktion: () => {
     // E-443 (Gutachten): zuerst die Unterlage, die wir neu brauchen — wie die Vorbelegung ohne Klick.
     const ziel = (fehlend.find((u: T) => u.abgelehnt && erlaubt(u.art)) ?? fehlend.find((u: T) => erlaubt(u.art)))?.art;
     if (ziel) setArt(ziel);
-    zu("gp-tresor");
+    geh("tresor", "ablage");
   } });
-  for (const x of nachreichen) tun.push({ key: `n${x.art}`, ton: "", titel: w.neuTitel(x.titel), text: x.grund, knopf: w.zumTresor, aktion: () => { if (erlaubt(x.art)) setArt(x.art); zu("gp-tresor"); } });
+  for (const x of nachreichen) tun.push({ key: `n${x.art}`, ton: "", titel: w.neuTitel(x.titel), text: x.grund, knopf: w.zumTresor, aktion: () => { if (erlaubt(x.art)) setArt(x.art); geh("tresor", "ablage"); } });
   // Scheibe 1: offene Rechnung eines hinzugefügten Dienstes — mit dem Weg zur Zahlungsseite.
   for (const d of (a.dienste?.gebucht ?? []) as T[]) {
     const z = globalZusatz(d.key);
@@ -543,9 +591,10 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       // E-452: ohne den Namen — er steht auf jeder Karte schon groß darüber.
       case "gesellschaft": return [gp.ein ? `EIN ${gp.ein}` : "", gp.duns ? "D-U-N-S" : ""].filter(Boolean).join(" · ") || (de ? "Nummern und Daten" : "Numbers and dates");
       case "adressen": return [gp.usTelefon ? stationTelefonText(gp.usTelefon) : "", gp.usAdresse ? (de ? "Geschäftsadresse" : "Business address") : "", gp.privatAdresse ? (de ? "private Adresse" : "private address") : ""].filter(Boolean).join(" · ") || (de ? "Folgt mit der Einrichtung" : "Follows with the set-up");
-      case "tresor": return de ? `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} Dokumente${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} zur Unterschrift` : ""}` : `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} documents${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} to sign` : ""}`;
-      case "post": return postNeu.length ? (de ? `${postNeu.length} ungelesen` : `${postNeu.length} unread`) : (de ? `${post.length} Briefe` : `${post.length} letters`);
-      case "anfragen": return ungeleseneAntworten.length ? (de ? "Neue Antwort" : "New reply") : (de ? `${nachrichten.length} Nachrichten` : `${nachrichten.length} messages`);
+      // E-534: Einzahl richtig („1 Dokument“, „1 Brief“, „1 Nachricht“); ohne Nachricht lädt die Zeile zum Schreiben ein.
+      case "tresor": { const n = tresorDoks.length + (a.angebotUnterlagen ?? []).length; return de ? `${n} ${n === 1 ? "Dokument" : "Dokumente"}${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} zur Unterschrift` : ""}` : `${n} ${n === 1 ? "document" : "documents"}${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} to sign` : ""}`; }
+      case "post": return postNeu.length ? (de ? `${postNeu.length} ungelesen` : `${postNeu.length} unread`) : w.postZahl(post.length, 0);
+      case "anfragen": return ungeleseneAntworten.length ? (de ? "Neue Antwort" : "New reply") : nachrichten.length === 0 ? (de ? "Schreiben Sie uns" : "Write to us") : de ? `${nachrichten.length} ${nachrichten.length === 1 ? "Nachricht" : "Nachrichten"}` : `${nachrichten.length} ${nachrichten.length === 1 ? "message" : "messages"}`;
       case "kapital": return zugesagtCents > 0 ? `${globalUsd(zugesagtCents, s)} ${de ? "zugesagt" : "approved"}` : (de ? `${kapital.length} Einträge` : `${kapital.length} entries`);
       case "vertrag": return a.status === "offen" ? (t.status?.[a.status] ?? a.status) : a.paketName;
       case "dienste": {
@@ -648,7 +697,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       {/* ── Navigation (22.10.2026): schwebende Glasleiste mit Themen und Panel; am Telefon ein ganzseitiges Menü ── */}
       <PortalNav gruppen={navGruppen} seite={seite} geh={geh} titel={w.buero} aktuellTitel={w.seiten[seite]}
         marke={<a className="gp-logo" href="#uebersicht" onClick={(e) => { e.preventDefault(); geh("uebersicht"); }} aria-label={`FIAON Global · ${w.seiten.uebersicht}`}><FiaonWortmarke variante="global" hoehe="22px" /></a>}
-        person={ap ? { name: String(ap.name ?? apVorname), rolle: w.rolle, bild: ap.bild ?? null, onKlick: () => geh("anfragen") } : null}
+        person={ap ? { name: String(ap.name ?? apVorname), rolle: w.rolle, bild: ap.bild ?? null, onKlick: () => geh("anfragen", "schreiben") } : null}
         texte={{ navTitel: w.navTitel, menue: w.menue, schliessen: w.schliessen, sicher: w.sicher, schreiben: w.schreiben }} />
 
       <div className="gp-app">
@@ -669,6 +718,15 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                     <span className={`gp-glaspille st-${a.status}`}>{t.status?.[a.status] ?? a.status}</span>
                     {chips.slice(0, 2).map((c) => <span key={c} className="gp-glaspille">{c}</span>)}
                   </div>
+                  {/* E-534 (Justins Wahl „in der blauen Bühne“): die zwei Wege, die jeder sofort findet — schreiben und hochladen.
+                        „Unterlage hochladen“ steht da, sobald der Dokumentenraum offen ist (wie der Upload im Tresor). Bei einem
+                        stornierten Auftrag nimmt der Server keine Nachricht mehr an — dann stehen hier keine Knöpfe. */}
+                  {a.status !== "storniert" && (
+                    <div className="gp-sperr-wege" role="group" aria-label={w.wegeTitel} data-fiaon="portal-wege">
+                      <button type="button" className="gp-sperr-knopf haupt" onClick={() => geh("anfragen", "schreiben")} data-fiaon="portal-nachricht-schreiben">{w.schreiben}</button>
+                      {darfHochladen && <button type="button" className="gp-sperr-knopf" onClick={() => geh("tresor", "ablage")} data-fiaon="portal-unterlage-hochladen">{w.hochladenTitel}</button>}
+                    </div>
+                  )}
                 </div>
                 <div className="gp-widgets">
                   {/* E-452: wie der Bestellstatus bei Apple — EIN Satz, was gerade passiert, und EIN Schritt für den Kunden (oder Ruhe). */}
@@ -706,7 +764,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                     <div className="gp-widget gp-w-kontakt">
                       {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-w-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
                       <div><b>{ap.name}</b><small>{w.rolle}</small></div>
-                      <button type="button" className="gp-w-knopf" onClick={() => geh("anfragen")}>{w.nachricht}</button>
+                      <button type="button" className="gp-w-knopf" onClick={() => geh("anfragen", "schreiben")}>{w.nachricht}</button>
                     </div>
                   )}
                 </div>
@@ -958,8 +1016,14 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
               {seite === "tresor" && <div className="gp-haupt">
           {/* ── Tresor ── */}
           <section id="gp-tresor" className="gp-abschnitt gp-auftauchen">
-            <h2 className="gp-h2">{w.tresorTitel}</h2>
-            <p className="gp-lead">{w.tresorLead}</p>
+            {/* E-534 (Justins Wahl „Sprung-Knopf oben“): Der Upload bleibt unter den Dokumenten; der Knopf oben springt hin. */}
+            <div className="gp-kopfzeile">
+              <div>
+                <h2 className="gp-h2">{w.tresorTitel}</h2>
+                <p className="gp-lead">{w.tresorLead}</p>
+              </div>
+              {darfHochladen && <button type="button" className="gp-knopf" onClick={() => springeZu("ablage")} data-fiaon="tresor-zum-upload">{w.hochladenTitel}</button>}
+            </div>
             <div className="gp-mappen" role="tablist">
               <button type="button" role="tab" aria-selected={mappe === "alle"} className={mappe === "alle" ? "an" : ""} onClick={() => setMappe("alle")}>{w.alle}</button>
               {mappen.map((m) => (
@@ -976,7 +1040,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             </div>
 
             {darfHochladen ? (
-              <div className={`gp-ablage${zieht ? " zieht" : ""}`}
+              <div id="gp-ablage" ref={ablageRef} className={`gp-ablage${zieht ? " zieht" : ""}${ablageBlick ? " gp-ablage-blick" : ""}`} data-fiaon="tresor-upload"
                    onDragOver={(e) => { e.preventDefault(); setZieht(true); }} onDragLeave={() => setZieht(false)}
                    onDrop={(e) => { e.preventDefault(); setZieht(false); const f = e.dataTransfer.files?.[0]; if (f) setDatei(f); }}>
                 <b className="gp-ablage-titel">{w.hochladenTitel}</b>
@@ -1009,7 +1073,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                 {uploadMeldung && <p className={`gp-meldung ${uploadMeldung.gut ? "gut" : "schlecht"}`} role="status">{uploadMeldung.text}</p>}
               </div>
             ) : (
-              <p className="gp-leise gp-hinweis-zeile">{t.uploadGesperrt}</p>
+              <p className="gp-leise gp-hinweis-zeile" data-fiaon="tresor-upload-gesperrt">{t.uploadGesperrt}</p>
             )}
           </section>
 
@@ -1050,7 +1114,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
               ))}
             </div>
             <form className="gp-schreiben" onSubmit={senden}>
-              <textarea className="gp-eingabe" value={text} maxLength={2000} rows={3} placeholder={w.platzhalter} onChange={(e) => setText(e.target.value)} aria-label={w.anfragenTitel} />
+              <textarea ref={schreibFeld} className="gp-eingabe" value={text} maxLength={2000} rows={3} placeholder={w.platzhalter} onChange={(e) => setText(e.target.value)} aria-label={w.schreiben} data-fiaon="nachricht-feld" />
               <button type="submit" className="gp-knopf" disabled={sendet || !text.trim() || vorschau}>
                 {sendet ? w.sendet : w.senden}
               </button>
@@ -1072,7 +1136,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                 </div>
               </div>
             ) : <p className="gp-leise">{t.seiteAnsprechLeer}</p>}
-            <button type="button" className="gp-knopf leise breit" onClick={() => zu("gp-anfragen")}>{w.schreiben}</button>
+            <button type="button" className="gp-knopf leise breit" onClick={() => springeZu("schreiben")}>{w.schreiben}</button>
           </div>
 
                   </aside>

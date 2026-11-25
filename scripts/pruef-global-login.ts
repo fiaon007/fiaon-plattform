@@ -325,7 +325,11 @@ abschnitt("9 · Weiterleitung nur innerhalb der Business-Welt");
   gleich(w("/business/auftrag/FIAON-MB2XK4LQ-7T9A"), "/business/auftrag/FIAON-MB2XK4LQ-7T9A", "eigener Auftrag");
   gleich(w("/en/business/auftrag/FIAON-X1Y2"), "/en/business/auftrag/FIAON-X1Y2", "englisch");
   gleich(w("/business/konto"), "/business/konto", "Übersicht");
-  for (const boese of ["//boese.example/business/konto", "https://boese.example", "/\\boese.example", "/business/../admin", "/admin", "/business/auftrag/x\"><script>", "javascript:alert(1)", "/business/auftrag/FIAON-1?t=1.2&x=<"]) {
+  // E-534: Sprungmarke aus Kleinbuchstaben überlebt die Anmeldung (#hochladen, #nachrichten).
+  gleich(w("/business/auftrag/FIAON-X1Y2#hochladen"), "/business/auftrag/FIAON-X1Y2#hochladen", "Sprungmarke #hochladen");
+  gleich(w("/en/business/auftrag/FIAON-X1Y2#nachrichten"), "/en/business/auftrag/FIAON-X1Y2#nachrichten", "Sprungmarke #nachrichten (englisch)");
+  for (const boese of ["//boese.example/business/konto", "https://boese.example", "/\\boese.example", "/business/../admin", "/admin", "/business/auftrag/x\"><script>", "javascript:alert(1)", "/business/auftrag/FIAON-1?t=1.2&x=<",
+    "/business/auftrag/FIAON-X1Y2#<script>", "/business/auftrag/FIAON-X1Y2#//boese.example", "/business/auftrag/FIAON-X1Y2#a", "/business/auftrag/FIAON-X1Y2#Hochladen"]) {
     gleich(w(boese), null, `abgewiesen: ${boese}`);
   }
 }

@@ -156,7 +156,8 @@ kopf("5  Dokumente, Post, Unterschrift, bitte neu, Antwort — Sortierung");
   ok(arten[2] === "antwort", "dann die Antworten", arten);
   ok(arten.slice(3).join(",") === "telefon,dokument,post", "dann das Übrige, jüngstes zuerst", arten);
   const ant = e.liste.find((x) => x.art === "antwort");
-  ok(ant?.titel === "2 neue Antworten auf Ihre Anfragen" && ant.ziel === "anfragen", "zwei ungelesene Antworten (gelesene + eigene zählen nicht)", ant);
+  // E-534: Die Seite heißt für den Kunden „Nachrichten“; die Adresse bleibt „anfragen“.
+  ok(ant?.titel === "2 neue Antworten auf Ihre Nachrichten" && ant.ziel === "anfragen", "zwei ungelesene Antworten (gelesene + eigene zählen nicht)", ant);
   const u = e.liste.filter((x) => x.art === "unterschrift");
   ok(u.length === 1 && u[0].titel === "Bitte unterschreiben: Vollmacht" && u[0].handeln === true, "nur die offene Unterschrift, mit handeln-Marke", u);
   const lang = globalNeuigkeitenBauen({ ...leer(), dokumente: [doc("vollmacht", vor(1), { unterschriftGefordert: true, titel: "Ergänzung zu Ihrem Auftrag – Ihre Befugnisse für FIAON" })] }, "de").liste[0];
@@ -248,6 +249,33 @@ kopf("8  Quelltext: Vorschau, Lesen, Fenster");
   const keyframes = css.match(/@keyframes[^{]+\{[^@]*?\}\s*\}/g) ?? [];
   ok(keyframes.length >= 5 && keyframes.every((k) => !/(width|height|top|left|margin|padding)\s*:/.test(k)), "Bewegung nur über transform/opacity (Keyframes)", keyframes.filter((k) => /(width|height|top|left|margin|padding)\s*:/.test(k)));
   ok(!/\b(gold|#d4af37|#c9a227)\b/i.test(css), "kein Gold");
+}
+
+// ── 9 E-534: Nachrichten und Upload sofort sichtbar ─────────────────────────
+// Ein Kunde war eingeloggt und fand keinen Weg zu schreiben. Seither: „Nachrichten“ statt „Anfragen“, zwei Knöpfe in der
+// Bühne, Sprung-Knopf im Tresor, Sprungmarken #nachrichten/#hochladen. Gegen den Stand vor E-534 ist dieser Block rot.
+kopf("9  E-534: Nachrichten und Upload sofort sichtbar");
+{
+  const seite = readFileSync("client/src/pages/global-portal.tsx", "utf8");
+  const glas = readFileSync("client/src/styles/global-portal-glas.css", "utf8");
+  const fach = readFileSync("client/src/pages/global-portal-fach.tsx", "utf8");
+  ok(/anfragen: "Nachrichten"/.test(seite) && /anfragen: "Messages"/.test(seite), "Menü: „Nachrichten“ / „Messages“ (Schlüssel bleibt „anfragen“)");
+  ok(/anfragenTitel: "Ihre Nachrichten"/.test(seite) && /anfragenTitel: "Your messages"/.test(seite) && /anfragenLeer: "Noch keine Nachricht\."/.test(seite), "Überschrift und Leer-Satz sagen „Nachricht“");
+  ok(!/"(Ihre )?Anfragen"|"Requests"|Noch keine Anfrage|Zu Ihrer Anfrage|On your request/.test(seite), "kein „Anfrage(n)“/„Requests“ mehr als Kundentext im Portal");
+  ok(!/unter „Anfragen“/.test(fach), "Fachbereich-Dialog verweist auf „Nachrichten“");
+  const eine = { ...leer(), nachrichten: [{ id: 9, von: "fiaon" as const, am: vor(1), gelesen: false }] };
+  const antDe = globalNeuigkeitenBauen(eine, "de").liste.find((x) => x.art === "antwort")?.titel;
+  const antEn = globalNeuigkeitenBauen(eine, "en").liste.find((x) => x.art === "antwort")?.titel;
+  ok(antDe === "Neue Antwort auf Ihre Nachricht" && antEn === "New reply to your message", "„Neu für Sie“ und Info-Mail: „Neue Antwort auf Ihre Nachricht“", { antDe, antEn });
+  ok(/className="gp-sperr-wege"/.test(seite) && /geh\("anfragen", "schreiben"\)[^\n]*\{w\.schreiben\}/.test(seite), "Bühne: Knopf „Nachricht schreiben“ springt ins Schreibfeld");
+  ok(/\{darfHochladen && <button[^\n]*geh\("tresor", "ablage"\)[^\n]*\{w\.hochladenTitel\}/.test(seite), "Bühne: „Unterlage hochladen“ nur bei offenem Dokumentenraum, springt zum Upload");
+  ok(/data-fiaon="tresor-zum-upload"/.test(seite) && /springeZu\("ablage"\)/.test(seite) && /ref=\{ablageRef\}/.test(seite), "Tresor: Sprung-Knopf oben, Ziel am Upload-Feld");
+  ok(/ref=\{schreibFeld\}/.test(seite) && /schreibFeld\.current\?\.focus\(\{ preventScroll: true \}\)/.test(seite), "Nachrichten: Schreibfeld bekommt den Fokus");
+  ok(/nachrichten: \{ seite: "anfragen" \}/.test(seite) && /hochladen: \{ seite: "tresor", sprung: "ablage" \}/.test(seite) && /SEITEN\.includes\(h as PortalSeite\)/.test(seite), "Sprungmarken #nachrichten/#hochladen; #anfragen gilt weiter");
+  ok(/geh\("tresor", "ablage"\); \} \}\);/.test(seite) || /geh\("tresor", "ablage"\);\n\s*\} \}\);/.test(seite), "„Für Sie zu tun“ (Unterlage fehlt / bitte neu) springt direkt zum Upload");
+  ok(/\.gp-glas \.gp-sperr-knopf \{[^}]*min-height: 46px/.test(glas) && /\.gp-glas \.gp-sperr-knopf \{ min-height: 48px/.test(glas), "Knöpfe groß genug zum Tippen (≥ 46 px, Handy 48 px)");
+  // Der Kopfkommentar der Glas-Datei sagt selbst „kein Gold“ — geprüft wird nur der Stil, ohne Kommentare.
+  ok(!/\b(gold|#d4af37|#c9a227)\b/i.test(glas.replace(/\/\*[\s\S]*?\*\//g, "")), "kein Gold");
 }
 
 console.log(`\nERGEBNIS: ${gut} grün, ${rot.length} rot`);

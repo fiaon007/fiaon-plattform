@@ -1788,6 +1788,8 @@ export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
     titel: "Alle Kunden-Aufgaben führen hierher.",
     text: "Upload, Nachricht, digitale Unterschrift und unterschriebener Scan legen eine Aufgabe an, die direkt in diese Akte springt. "
       + "Gelesen oder beantwortet (Reiter „Anfragen“ oder „antworten“ unter „Jetzt zu tun“) bzw. geöffnet (Tresor) — dann ist die Aufgabe erledigt. "
+      // E-534 (25.11.2026) mitgezogen: Im Portal heißt der Faden für den Kunden „Nachrichten“.
+      + "Im Portal heißt dieser Faden für den Kunden „Nachrichten“ — sagt ein Kunde „Nachrichten“, meint er diesen Reiter. "
       + "Lädt das Team einen Scan selbst hoch, schließt sich seine Aufgabe sofort. Nur der SS-4-Scan bleibt "
       + "offen, bis du ihn an den Registered Agent zurückgeschickt hast.",
   },
@@ -1909,6 +1911,15 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
     text: "Neue Uploads des Kunden stehen ganz oben, darunter, was beim Kunden zur Unterschrift liegt, dann alle Mappen. "
       + "„···“ an einem Dokument: Art korrigieren, „Bitte neu …“ mit Grund, freigeben oder intern machen, Unterschrift anfordern, entfernen. "
       + "Die Reiter daneben: Post für den Briefkasten des Kunden, Unterschriften (SS-4, 8821, Scan im Namen des Kunden, Akte als ZIP) und Formulare.",
+  },
+  // E-534 (25.11.2026) mitgezogen: Ein Kunde fand im Portal keinen Weg zu schreiben — seither zwei Knöpfe ganz oben.
+  {
+    titel: "So schreibt der Kunde uns — und so lädt er hoch.",
+    text: "Im Portal stehen ganz oben in der blauen Bühne zwei Knöpfe: „Nachricht schreiben“ öffnet die Seite „Nachrichten“ mit dem "
+      + "Schreibfeld, „Unterlage hochladen“ springt im Tresor direkt zum Upload-Feld (dieser Knopf erscheint, sobald der Dokumentenraum "
+      + "offen ist). Im Tresor steht derselbe Knopf oben neben der Überschrift. Was der Kunde schreibt oder hochlädt, landet hier in der Akte. "
+      + "Fragt ein Kunde, wo er uns schreiben oder etwas schicken kann: „Auf der Übersicht ganz oben — Nachricht schreiben oder Unterlage hochladen.“",
+    tipp: "In einer Mail führt der Portal-Link direkt hin, wenn du #nachrichten bzw. #hochladen ans Ende hängst.",
   },
   {
     titel: "Alles andere ist eingeklappt — ein Klick öffnet es.",

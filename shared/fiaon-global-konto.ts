@@ -63,7 +63,8 @@ export function kontoEmail(roh: unknown): string | null {
 export function kontoWeiterSicher(roh: unknown): string | null {
   const p = String(roh ?? "").trim();
   if (!p || p.length > 300) return null;
-  if (!/^\/(en\/)?business\/(auftrag\/[A-Za-z0-9-]{4,60}|konto|account)(\?[A-Za-z0-9=&_-]*)?$/.test(p)) return null;
+  // E-534: am Ende darf eine Sprungmarke aus Kleinbuchstaben stehen (#hochladen, #nachrichten) — sie verlässt die Seite nie.
+  if (!/^\/(en\/)?business\/(auftrag\/[A-Za-z0-9-]{4,60}|konto|account)(\?[A-Za-z0-9=&_-]*)?(#[a-z]{2,20})?$/.test(p)) return null;
   return p;
 }
 

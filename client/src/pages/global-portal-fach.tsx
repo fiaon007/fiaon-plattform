@@ -111,7 +111,7 @@ function Einzelfall({ bereich, mitToken, vorschau, zu, vorbelegt }: { bereich: F
           <div className="gp-fertig">
             <svg className="gp-haken-gross" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24" /><path d="M15 27 l7 7 l15 -16" /></svg>
             <h3>Ihre Anfrage ist bei uns</h3>
-            <p>Ihr Ansprechpartner meldet sich — den Verlauf sehen Sie unter „Anfragen“.</p>
+            <p>Ihr Ansprechpartner meldet sich — den Verlauf sehen Sie unter „Nachrichten“.</p>
             <button type="button" className="gp-knopf" onClick={zu}>Schließen</button>
           </div>
         ) : (

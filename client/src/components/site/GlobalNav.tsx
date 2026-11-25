@@ -319,6 +319,8 @@ export default function GlobalNav() {
 
         <button ref={burger} type="button" className="gk-burger" aria-expanded={mobil} aria-controls="gk-mobil" aria-label={mobil ? w.zu : w.auf} onClick={() => setMobil(!mobil)}>
           <span /><span /><span />
+          {/* E-533: das Wort zum Menü — nur in der Kopf-Fassung „Marke in der Mitte“ sichtbar (styles/global-kino.css). */}
+          <b className="gk-burger-wort" aria-hidden="true">{w.menue}</b>
         </button>
       </div>
 
@@ -349,7 +351,9 @@ export default function GlobalNav() {
           NEBEN dem Kopf, nicht darin: Der Kopf trägt backdrop-filter, und ein Filter
           macht ihn zum Bezugsrahmen für position:fixed — das Menü wäre 72 px hoch. */}
       {mobil && (
-        <div ref={menue} id="gk-mobil" className={`gk-mobil${oeffentlich ? " gk-neu" : ""}`} role="dialog" aria-modal="true" aria-label={w.menue}>
+        // E-533: Ein Klick auf den freien Schleier neben dem Seitenblatt schließt das Menü (Kopf-Fassung „Marke in der Mitte“ am Rechner).
+        <div ref={menue} id="gk-mobil" className={`gk-mobil${oeffentlich ? " gk-neu" : ""}`} role="dialog" aria-modal="true" aria-label={w.menue}
+             onClick={(e) => { if (e.target === e.currentTarget) setMobil(false); }}>
           <div className="gk-mobil-rumpf">
             <a href={globalSeitePfad(sp)} className="gk-mobil-start" onClick={() => setMobil(false)}><b>{w.uebersicht}</b><span>{weitererSatz("PRODUKTNAME", sp)}</span></a>
             {gruppen.map((g) => (

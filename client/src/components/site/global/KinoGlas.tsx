@@ -89,6 +89,54 @@ export function useKinoEinstieg(ref: RefObject<HTMLElement | null>) {
   }, [ref]);
 }
 
+/**
+ * Die Kopfzeile der Unterseiten (Justin 25.11. nachmittags: „nur die Menüzeile oben muss cleaner werden … gebe mir 3 Vorschläge“).
+ * Drei Fassungen im Kino-Glas, nur auf Seiten mit der Bühne (die Startseite behält ihren Kopf):
+ *   a „Zwei Inseln“      — Navigation und Handlungen als zwei schwebende Glas-Inseln, ohne Winkel;
+ *   b „Linie“            — eine ultraschlanke Glasleiste über die ganze Breite, großes Glas-Menü, weicht beim Scrollen nach unten aus;
+ *   c „Marke in der Mitte“ — Menü links, Marke mittig, die eine Handlung rechts; alles Weitere im Seitenblatt.
+ * Vorschau: ?kopf=a|b|c in der Adresse (bleibt beim Weiterklicken erhalten). Ohne Angabe gilt KOPF_STANDARD.
+ * Setzt html.kn-kopf + html.kn-kopf-<fassung>; der Stil steht in styles/global-kino.css (Abschnitt 17).
+ */
+export type KinoKopf = "a" | "b" | "c";
+const KOPF_STANDARD: KinoKopf = "a";
+const KOPF_SPEICHER = "fiaon_kopf_vorschau";
+export function kinoKopfWahl(): KinoKopf {
+  if (typeof window === "undefined") return KOPF_STANDARD;
+  const ist = (x: string | null): x is KinoKopf => x === "a" || x === "b" || x === "c";
+  const aus = new URLSearchParams(window.location.search).get("kopf");
+  try {
+    if (ist(aus)) { window.sessionStorage.setItem(KOPF_SPEICHER, aus); return aus; }
+    const gemerkt = window.sessionStorage.getItem(KOPF_SPEICHER);
+    if (ist(gemerkt)) return gemerkt;
+  } catch { /* privates Fenster: nur die Adresse zählt */ }
+  return ist(aus) ? aus : KOPF_STANDARD;
+}
+
+export function useKinoKopf() {
+  useLayoutEffect(() => {
+    const html = document.documentElement;
+    const f = kinoKopfWahl();
+    html.classList.add("kn-kopf", `kn-kopf-${f}`);
+    // Fassung b weicht beim Scrollen nach unten aus und kommt beim Zurückscrollen wieder (nie über dem Lesen, Justins Regel).
+    let bild = 0, letzt = window.scrollY;
+    const messen = () => {
+      bild = 0;
+      const y = window.scrollY;
+      const offen = !!document.querySelector('.gk-panel:not([hidden]), #gk-mobil');
+      if (offen || y < 140 || y < letzt - 4) html.classList.remove("kn-kopf-weg");
+      else if (y > letzt + 4) html.classList.add("kn-kopf-weg");
+      letzt = y;
+    };
+    const planen = () => { if (!bild) bild = requestAnimationFrame(messen); };
+    if (f === "b" && !ruhigGewuenscht()) window.addEventListener("scroll", planen, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", planen); cancelAnimationFrame(bild);
+      html.classList.remove("kn-kopf", `kn-kopf-${f}`, "kn-kopf-weg");
+    };
+  }, []);
+}
+
 /** Zählt die Wörter eines Satzes so, wie KinoWorte sie trennt — damit die zweite Zeile der Überschrift weiterzählt. */
 export const kinoWortZahl = (text: string) => text.split(/[ \t\n\r]+/).filter(Boolean).length;
 

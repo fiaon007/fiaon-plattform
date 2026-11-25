@@ -57,7 +57,7 @@ import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 // E-533 (25.11.2026): Kino-Glas — Kino-Einstieg der Bühne, Überschrift Wort für Wort, Licht unter dem Zeiger, Tiefe beim Scrollen.
-import { KinoBuehne, KinoWorte, kinoWortZahl, useGlasZeiger, useKinoEinstieg } from "@/components/site/global/KinoGlas";
+import { KinoBuehne, KinoWorte, kinoWortZahl, useGlasZeiger, useKinoEinstieg, useKinoKopf } from "@/components/site/global/KinoGlas";
 import Merkblatt from "@/components/site/global-seite/Merkblatt";
 import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
 import SeitenWeg from "@/components/site/global-seite/SeitenWeg";
@@ -257,6 +257,8 @@ function Seite({ s }: { s: GlobalSeite }) {
   // E-533: Die Bühne baut sich nach dem Ladebildschirm auf; Glas folgt dem Zeiger (nur Maus und Trackpad).
   useKinoEinstieg(kopf);
   useGlasZeiger(wurzel);
+  // Die neue Kopfzeile der Unterseiten (drei Fassungen zur Wahl, Justin 25.11.).
+  useKinoKopf();
   const [leiste, setLeiste] = useState(false);
   // 06.10.2026 (E-293): Der Kalender lädt erst auf Wunsch — oder sofort, wenn jemand mit #gespraech ankommt.
   const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");

@@ -61,6 +61,8 @@ html.fg-dokument #root { overflow-x:clip; }
 .gk-sprache i { font-style:normal; opacity:.5; }
 
 .gk-burger { display:none; margin-left:auto; width:44px; height:44px; border:0; background:none; border-radius:10px; cursor:pointer; position:relative; }
+/* E-533: das Wort „Menü“ am Knopf — nur die Kopf-Fassung „Marke in der Mitte“ zeigt es (global-kino.css). */
+.gk-burger-wort { display:none; }
 .gk-burger span { position:absolute; left:12px; right:12px; height:1.6px; background:var(--gk-tinte); border-radius:2px; transition:transform .25s, opacity .2s; }
 .gk-burger span:nth-child(1) { top:15px; } .gk-burger span:nth-child(2) { top:21px; } .gk-burger span:nth-child(3) { top:27px; }
 .gk-burger[aria-expanded="true"] span:nth-child(1) { transform:translateY(6px) rotate(45deg); }

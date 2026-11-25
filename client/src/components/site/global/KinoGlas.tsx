@@ -93,7 +93,7 @@ export function KinoBuehne({ ring = true, scheiben = true }: { ring?: boolean; s
 /** Welche Glasflächen dem Zeiger folgen (Licht + leichte Neigung). Ein Selektor für alle — keine Markierung je Baustein. */
 const ZEIGER_ZIELE = [
   ".fd-karteikarte.breit", ".fd-karte", ".fd-rolle", ".fd-weiter-raster > a", ".fd-verzeichnis a", ".kn-glas",
-  ".fd-gespraech-karte", ".gvt-liste > li", ".vk-karte", ".lp-karte", ".kn-zeiger",
+  ".fd-gespraech-karte", ".gvt-liste > li", ".vk-karte", ".lp-karte", ".gt-person", ".kn-zeiger",
 ].join(",");
 
 /**

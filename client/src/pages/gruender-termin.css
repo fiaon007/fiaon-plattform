@@ -226,3 +226,141 @@
   .gt-tag, .gt-zeit, .gt-knopf { transition: none; }
   .gt-tag:hover, .gt-zeit:hover, .gt-knopf:hover { transform: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-533 (25.11.2026) — KINO-GLAS auf der Gründerseite (Klasse „kino“ an .gt-seite)
+   Wie die öffentlichen Global-Seiten (styles/global-kino.css): Kino-Einstieg nach dem Ladebildschirm, die Person als
+   schwebendes Glas mit Licht unter dem Zeiger, die Buchung als eine Glasplatte, Tage und Zeiten als Glaskacheln mit
+   einem Hauch Feder. Nur transform und opacity bewegen sich; am Telefon dichtes Glas ohne Unschärfe; bei „weniger
+   Bewegung“ steht alles sofort. Die Buchung selbst (Abläufe, Felder, Texte) ist unverändert.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@property --kl { syntax: "<number>"; inherits: false; initial-value: 0; }
+.gt-seite.kino {
+  position: relative; overflow-x: clip; isolation: isolate;
+  background:
+    radial-gradient(60vw 44vw at 88% -4%, rgba(40, 141, 250, .2), rgba(40, 141, 250, 0) 64%),
+    radial-gradient(50vw 40vw at -6% 30%, rgba(29, 78, 216, .1), rgba(29, 78, 216, 0) 62%),
+    linear-gradient(180deg, #f4f8ff 0%, #eaf2fd 60%, #eef4fd 100%);
+}
+.gt-seite.kino .gt-rahmen { position: relative; }
+.gt-seite.kino .kn-buehne { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.gt-seite.kino .kn-licht { position: absolute; display: block; border-radius: 50%; }
+.gt-seite.kino .kn-licht.a { width: min(62vw, 920px); aspect-ratio: 1; right: -30%; top: -40%; background: radial-gradient(closest-side, rgba(40, 141, 250, .3), rgba(40, 141, 250, .1) 50%, rgba(40, 141, 250, 0) 74%); }
+.gt-seite.kino .kn-licht.b { width: min(46vw, 700px); aspect-ratio: 1; left: -32%; top: 20%; background: radial-gradient(closest-side, rgba(29, 78, 216, .16), rgba(29, 78, 216, 0) 72%); }
+.gt-seite.kino .kn-licht.c { width: min(26vw, 380px); aspect-ratio: 1; left: 18%; top: -6%; background: radial-gradient(closest-side, rgba(255, 255, 255, .9), rgba(255, 255, 255, 0) 72%); }
+.gt-seite.kino .kn-scheibe {
+  position: absolute; display: block; border-radius: 50%;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .74) 0%, rgba(255, 255, 255, .16) 58%, rgba(255, 255, 255, .36) 100%);
+  border: 1px solid rgba(255, 255, 255, .8);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -12px 26px -18px rgba(29, 78, 216, .4), 0 26px 50px -28px rgba(29, 78, 216, .55);
+  -webkit-backdrop-filter: blur(10px) saturate(170%); backdrop-filter: blur(10px) saturate(170%);
+}
+.gt-seite.kino .kn-scheibe.a { width: 104px; height: 104px; left: -64px; top: 92px; }
+.gt-seite.kino .kn-scheibe.b { width: 58px; height: 58px; right: -40px; top: 58%; }
+@media (max-width: 1240px) { .gt-seite.kino .kn-scheibe { display: none; } }
+
+/* Die Person: schwebendes Glas, das Licht folgt dem Zeiger */
+.gt-seite.kino .gt-person {
+  --kl: 0;
+  border: 1px solid rgba(255, 255, 255, .9); border-radius: 30px;
+  background:
+    radial-gradient(360px circle at var(--kx, 30%) var(--ky, 0%), rgba(255, 255, 255, calc(.45 + var(--kl) * .45)), rgba(255, 255, 255, 0) 66%),
+    linear-gradient(165deg, rgba(255, 255, 255, .82) 0%, rgba(255, 255, 255, .56) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .98), 0 2px 4px rgba(18, 40, 74, .04), 0 30px 60px -32px rgba(18, 40, 74, .3), 0 80px 140px -70px rgba(29, 78, 216, .55);
+  -webkit-backdrop-filter: blur(26px) saturate(185%); backdrop-filter: blur(26px) saturate(185%);
+  transition: --kl .4s ease;
+}
+.gt-seite.kino .gt-person[data-zeiger] { --kl: 1; }
+.gt-seite.kino .gt-bild { box-shadow: 0 0 0 6px rgba(40, 141, 250, .1), 0 14px 30px -12px rgba(29, 78, 216, .55); }
+.gt-seite.kino .gt-name { font-size: 32px; font-weight: 300; letter-spacing: -.02em; }
+.gt-seite.kino .kn-w { display: inline-block; }
+.gt-seite.kino .gt-zitat { border-left: 0; padding-left: 16px; position: relative; }
+.gt-seite.kino .gt-zitat::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; border-radius: 3px; background: linear-gradient(180deg, #6fb0ff, #1d4ed8); box-shadow: 0 0 14px rgba(40, 141, 250, .45); }
+
+/* Die Buchung: eine Glasplatte; Tage und Zeiten als Glaskacheln */
+.gt-seite.kino .gt-buchung {
+  padding: clamp(24px, 3vw, 40px); border: 1px solid rgba(255, 255, 255, .9); border-radius: 30px;
+  background: linear-gradient(168deg, rgba(255, 255, 255, .76) 0%, rgba(255, 255, 255, .54) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .98), 0 14px 30px -20px rgba(18, 40, 74, .2), 0 48px 96px -60px rgba(29, 78, 216, .46);
+  -webkit-backdrop-filter: blur(26px) saturate(185%); backdrop-filter: blur(26px) saturate(185%);
+}
+.gt-seite.kino .gt-nr { background: linear-gradient(180deg, #3a8bff, #1d4ed8); border-color: transparent; color: #fff; box-shadow: 0 0 0 4px rgba(40, 141, 250, .12); }
+.gt-seite.kino .gt-schritt-kopf h2 { font-size: 21px; font-weight: 300; letter-spacing: -.012em; }
+.gt-seite.kino .gt-tag, .gt-seite.kino .gt-zeit {
+  background: rgba(255, 255, 255, .84); border-color: rgba(255, 255, 255, .95);
+  box-shadow: inset 0 1px 0 #fff, 0 10px 22px -16px rgba(18, 40, 74, .4);
+  transition: transform .5s cubic-bezier(.3, 1.28, .5, 1), border-color .2s ease, box-shadow .3s ease, background .2s ease;
+}
+.gt-seite.kino .gt-tag:hover:not(:disabled), .gt-seite.kino .gt-zeit:hover { transform: translateY(-2px); border-color: rgba(40, 141, 250, .45); box-shadow: inset 0 1px 0 #fff, 0 16px 30px -18px rgba(29, 78, 216, .55); }
+.gt-seite.kino .gt-tag[aria-pressed="true"], .gt-seite.kino .gt-zeit[aria-pressed="true"] {
+  border-color: #1d4ed8; background: #fff; box-shadow: inset 0 0 0 1px #1d4ed8, 0 0 0 4px rgba(40, 141, 250, .12), 0 16px 30px -18px rgba(29, 78, 216, .6);
+}
+.gt-seite.kino .gt-tag:disabled { background: rgba(249, 251, 255, .55); box-shadow: none; }
+.gt-seite.kino .gt-leer { border-color: rgba(18, 40, 74, .14); background: rgba(255, 255, 255, .5); }
+.gt-seite.kino .gt-wahl { border-radius: 22px; box-shadow: 0 30px 60px -30px rgba(11, 18, 32, .75), inset 0 1px 0 rgba(255, 255, 255, .14); }
+.gt-seite.kino .gt-feld input, .gt-seite.kino .gt-feld select, .gt-seite.kino .gt-feld textarea { background: rgba(255, 255, 255, .88); border-color: rgba(18, 40, 74, .12); border-radius: 14px; }
+.gt-seite.kino .gt-anrede { border-radius: 999px; border-color: rgba(18, 40, 74, .12); background: rgba(255, 255, 255, .88); }
+.gt-seite.kino .gt-anrede button { background: transparent; }
+.gt-seite.kino .gt-anrede button[aria-pressed="true"] { background: rgba(29, 78, 216, .08); }
+.gt-seite.kino .gt-knopf {
+  position: relative; overflow: hidden; isolation: isolate; border-radius: 999px;
+  background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 14px 28px -14px rgba(29, 78, 216, .75);
+  transition: transform .55s cubic-bezier(.3, 1.28, .5, 1), box-shadow .35s ease, opacity .15s ease;
+}
+.gt-seite.kino .gt-knopf::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, .42) 50%, rgba(255, 255, 255, 0) 70%); transform: translate3d(-120%, 0, 0); }
+@media (hover: hover) and (pointer: fine) {
+  .gt-seite.kino .gt-knopf:hover:not(:disabled)::after { transform: translate3d(120%, 0, 0); transition: transform .9s cubic-bezier(.16, 1, .3, 1); }
+}
+.gt-seite.kino .gt-fertig { border-color: rgba(255, 255, 255, .95); background: rgba(255, 255, 255, .8); box-shadow: inset 0 1px 0 #fff, 0 24px 50px -32px rgba(29, 78, 216, .45); }
+
+/* Der Kino-Einstieg (data-kino an .gt-rahmen: "0" vor dem ersten Bild, "1" nach dem Ladebildschirm) */
+.gt-seite.kino .gt-rahmen[data-kino="0"] :is(.gt-buchung, .kn-licht, .kn-scheibe, .gt-eyebrow, .gt-titel, .gt-fakten li) { opacity: 0; }
+/* LCP: Personenkarte, Name und Zitat warten nie ganz unsichtbar (zart, tiefer) — Google zählt sie so gleich beim ersten Bild. */
+.gt-seite.kino .gt-rahmen[data-kino="0"] :is(.gt-person, .gt-zitat) { opacity: .3; }
+.gt-seite.kino .gt-rahmen[data-kino="0"] .kn-w { opacity: .3; transform: translate3d(0, .5em, 0); filter: blur(8px); }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .kn-licht { animation: gt-kn-licht 2.4s cubic-bezier(.16, 1, .3, 1) backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .kn-licht.b { animation-delay: .12s; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .kn-licht.c { animation-delay: .3s; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .kn-scheibe.a { animation: gt-kn-scheibe 1.8s cubic-bezier(.16, 1, .3, 1) .6s backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .kn-scheibe.b { animation: gt-kn-scheibe 1.8s cubic-bezier(.16, 1, .3, 1) .8s backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-person { animation: gt-kn-person 1.5s cubic-bezier(.16, 1, .3, 1) .08s backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-eyebrow { animation: gt-kn-ein .9s cubic-bezier(.16, 1, .3, 1) .34s backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .kn-w { animation: gt-kn-wort 1.1s cubic-bezier(.16, 1, .3, 1) calc(.42s + var(--w, 0) * 70ms) backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-titel { animation: gt-kn-ein .9s cubic-bezier(.16, 1, .3, 1) .6s backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-zitat { animation: gt-kn-zart 1s cubic-bezier(.16, 1, .3, 1) .7s backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-fakten li { animation: gt-kn-ein .9s cubic-bezier(.16, 1, .3, 1) .82s backwards; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-fakten li:nth-child(2) { animation-delay: .9s; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-fakten li:nth-child(3) { animation-delay: .98s; }
+.gt-seite.kino .gt-rahmen[data-kino="1"] .gt-buchung { animation: gt-kn-platte 1.4s cubic-bezier(.16, 1, .3, 1) .26s backwards; }
+/* Was nach dem Laden der Zeiten dazukommt, gleitet einmal herein (die Animation läuft beim Einhängen). */
+.gt-seite.kino .gt-schritt, .gt-seite.kino .gt-fertig { animation: gt-kn-ein .8s cubic-bezier(.16, 1, .3, 1) backwards; }
+.gt-seite.kino .gt-schritt + .gt-schritt { animation-delay: .08s; }
+@keyframes gt-kn-ein { from { opacity: 0; transform: translate3d(0, 14px, 0); } }
+@keyframes gt-kn-zart { from { opacity: .3; transform: translate3d(0, 14px, 0); } }
+@keyframes gt-kn-licht { from { opacity: 0; transform: scale(.72); } }
+@keyframes gt-kn-scheibe { from { opacity: 0; transform: translate3d(0, 40px, 0) scale(.55); } }
+@keyframes gt-kn-person { from { opacity: .3; transform: perspective(1400px) translate3d(-36px, 46px, 0) rotateY(16deg) rotateX(8deg) scale(.94); } to { opacity: 1; transform: perspective(1400px) translate3d(0, 0, 0) rotateY(0deg) rotateX(0deg) scale(1); } }
+@keyframes gt-kn-wort { from { opacity: .3; transform: translate3d(0, .5em, 0); filter: blur(8px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes gt-kn-platte { from { opacity: 0; transform: translate3d(0, 60px, 0) scale(.96); } }
+@media (max-width: 720px) {
+  .gt-seite.kino .gt-person, .gt-seite.kino .gt-buchung { -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(168deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .84)); border-radius: 24px; }
+  .gt-seite.kino .kn-licht.a { width: 130vw; right: -70vw; top: -16%; }
+  .gt-seite.kino .kn-licht.b { width: 120vw; left: -76vw; }
+  .gt-seite.kino .kn-licht.c { display: none; }
+  .gt-seite.kino .gt-rahmen[data-kino="0"] .kn-w { filter: none; }
+  .gt-seite.kino .gt-rahmen[data-kino="1"] .kn-w { animation-name: gt-kn-zart; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gt-seite.kino :is(.gt-person, .gt-buchung, .kn-licht, .kn-scheibe, .kn-w, .gt-eyebrow, .gt-titel, .gt-zitat, .gt-fakten li, .gt-schritt, .gt-fertig) { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .gt-seite.kino .gt-knopf::after { display: none; }
+  .gt-seite.kino .gt-tag, .gt-seite.kino .gt-zeit, .gt-seite.kino .gt-knopf { transition: none; }
+}
+@media print {
+  .gt-seite.kino .kn-buehne { display: none; }
+  .gt-seite.kino :is(.gt-person, .gt-buchung) { background: #fff; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .gt-seite.kino .kn-buehne { display: none; }
+  .gt-seite.kino :is(.gt-person, .gt-buchung) { background: Canvas; border: 1px solid CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

@@ -4,7 +4,7 @@
 // Jede Seite: Hero → viele kurze Blöcke mit Mehrwert → Zwischen-CTAs →
 // Abschluss, der den Zusammenhang zur Startseite und zum nächsten Schritt zieht.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from "react";
 import GlassNav from "@/components/GlassNav";
 import { globalOeffentlich } from "@/components/site/GlobalNav";
 import PremiumFooter from "@/components/PremiumFooter";
@@ -52,7 +52,9 @@ export function Dunkel({ seite, titel, beschreibung, sprache, children }: { seit
   // GlassNav und PremiumFooter schalten im Business-Bereich selbst um (lib/bereich.ts).
   const business = seite === "business";
   // … und sie scrollen im Dokument, nicht in #root (Begründung: styles/global-rahmen.css, fg-dokument).
-  useEffect(() => {
+  // E-533 (25.11.2026): useLayoutEffect statt useEffect — die Klasse steht VOR dem ersten Bild. Vorher stand die Seite ein
+  // Bild lang mit dem Kopf im Fluss (264 px tiefer) und sprang dann hoch: ein Verrutschen (CLS), das Google mitzählt.
+  useLayoutEffect(() => {
     if (!business) return;
     document.documentElement.classList.add("fg-dokument");
     return () => document.documentElement.classList.remove("fg-dokument");

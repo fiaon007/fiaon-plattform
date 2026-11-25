@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import SeoDaten from "@/components/site/SeoDaten";
+// E-533 (25.11.2026): Kino-Glas — die Person schwebt als Glas herein, die Buchung ist eine Glasplatte (gruender-termin.css, Ende).
+import { KinoBuehne, KinoWorte, useGlasZeiger, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import "./gruender-termin.css";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -58,6 +60,11 @@ const THEMEN = [
 ];
 
 export default function GruenderTermin() {
+  // E-533: Kino-Einstieg nach dem Ladebildschirm; Licht unter dem Zeiger auf Person und Zeiten.
+  const seite = useRef<HTMLDivElement>(null);
+  const rahmen = useRef<HTMLElement>(null);
+  useKinoEinstieg(rahmen);
+  useGlasZeiger(seite);
   const [daten, setDaten] = useState<Angebot | null>(null);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -138,18 +145,19 @@ export default function GruenderTermin() {
   const initialen = (g?.name || "Justin Schwarzott").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="gt-seite">
+    <div ref={seite} className="gt-seite kino">
       <SeoDaten pfad="/justin" titel="Termin mit Justin Schwarzott, Gründer von FIAON"
                 beschreibung="Wählen Sie eine Zeit — Justin Schwarzott ruft Sie an. 30 Minuten, telefonisch, höchstens drei Gespräche am Tag." />
       <GlassNav activePage="kontakt" />
 
-      <main className="gt-rahmen">
+      <main ref={rahmen} className="gt-rahmen">
+        <KinoBuehne ring={false} />
         <aside className="gt-person" aria-label="Ihr Gesprächspartner">
           <div className="gt-bild">
             {g?.bild ? <img src={g.bild} alt={g.name} width={90} height={90} /> : <span aria-hidden="true">{initialen}</span>}
           </div>
           <p className="gt-eyebrow">Termin mit dem Gründer</p>
-          <h1 className="gt-name">{g?.name || "Justin Schwarzott"}</h1>
+          <h1 className="gt-name"><KinoWorte text={g?.name || "Justin Schwarzott"} /></h1>
           <p className="gt-titel">{g?.titel || "Gründer & Geschäftsführer"}, FIAON</p>
           <p className="gt-zitat">
             „Sie möchten direkt mit mir sprechen — über eine Partnerschaft, eine Beteiligung, Presse oder Ihre eigene

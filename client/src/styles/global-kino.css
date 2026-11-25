@@ -154,8 +154,13 @@ html.ap-gescrollt .fg.fg.kino .kn-weiter { opacity: 0; visibility: hidden; point
 @media (max-width: 1020px), (max-height: 700px) { html .fg.fg.kino .kn-weiter { display: none; } }
 
 /* ═══ 3 · DER KINO-EINSTIEG (data-kino: "0" vor dem ersten Bild, "1" nach dem Ladebildschirm) ═══════════════ */
-html .fg.fg.fd.kino .fd-kopf[data-kino="0"] :is(.fd-krumen, .fg-auge, .fd-lead, .fd-kopf-knoepfe > *, .fd-leiste > div, .fd-kopf-stand,
-  .fd-karteikarte, .kn-licht, .kn-ring circle, .kn-scheibe, .kn-w) { opacity: 0; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="0"] :is(.fd-krumen, .fg-auge, .fd-kopf-knoepfe > *, .fd-leiste > div, .fd-kopf-stand,
+  .fd-karteikarte, .kn-licht, .kn-ring circle, .kn-scheibe) { opacity: 0; }
+/* LCP (Messung 25.11.): Überschrift und Einleitung sind die größten Elemente — sie dürfen nie ganz unsichtbar warten, sonst
+   zählt Google sie erst nach dem Einstieg (gemessen 3,4 s statt 0,5 s). Darum stehen sie von Anfang an da: zart (0,3),
+   leicht unscharf und etwas tiefer — unter dem Ladebildschirm. Beim Einstieg ziehen sie sich scharf nach oben. */
+html .fg.fg.fd.kino .fd-kopf[data-kino="0"] .kn-w { opacity: .3; transform: translate3d(0, .5em, 0); filter: blur(10px); }
+html .fg.fg.fd.kino .fd-kopf[data-kino="0"] .fd-lead { opacity: .3; transform: translate3d(0, 18px, 0); }
 html .fg.fg.fd.kino .fd-kopf[data-kino="0"] .fd-leiste::before { transform: scaleX(0); }
 
 html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-licht { animation: kn-licht-an 2.4s var(--kn-aus) backwards; }
@@ -172,7 +177,7 @@ html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-w {
   animation: kn-wort 1.1s var(--kn-aus) calc(.26s + var(--w, 0) * 52ms) backwards,
              kn-wort-licht 1.5s ease-in-out calc(1.3s + var(--w, 0) * 75ms) backwards;
 }
-html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-lead { animation: kn-ein 1s var(--kn-aus) .6s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-lead { animation: kn-lead 1s var(--kn-aus) .6s backwards; }
 html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-kopf-knoepfe > * { animation: kn-knopf 1s var(--kn-feder) .76s backwards; }
 html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-kopf-knoepfe > :nth-child(2) { animation-delay: .86s; }
 html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-leiste::before { animation: kn-linie 1.4s var(--kn-aus) .9s backwards; }
@@ -192,7 +197,8 @@ html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-karteikarte:not(.breit) { animat
 @keyframes kn-ring-zug { from { opacity: 0; stroke-dashoffset: 100; } 30% { opacity: 1; } to { stroke-dashoffset: 0; } }
 @keyframes kn-scheibe-a { from { opacity: 0; transform: translate3d(-36px, 48px, 0) scale(.6); } }
 @keyframes kn-scheibe-b { from { opacity: 0; transform: translate3d(30px, 40px, 0) scale(.5); } }
-@keyframes kn-wort { from { opacity: 0; transform: translate3d(0, .5em, 0); filter: blur(10px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes kn-wort { from { opacity: .3; transform: translate3d(0, .5em, 0); filter: blur(10px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes kn-lead { from { opacity: .3; transform: translate3d(0, 18px, 0); } }
 @keyframes kn-wort-licht { 0%, 100% { color: var(--kn-wortfarbe); } 42% { color: #5fa6ff; } }
 @keyframes kn-knopf { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.92); } }
 @keyframes kn-linie { from { transform: scaleX(0); } }
@@ -624,7 +630,9 @@ html .fg.fg.vk-seite.kino .fg-kopf h1.fg-h2 {
 html .fg.fg.vk-seite.kino .fg-kopf h1.fg-h2 em { --kn-wortfarbe: var(--kn-blau); color: var(--kn-blau); -webkit-text-fill-color: currentColor; font-style: normal; }
 /* Der Kopf gleitet nicht mehr als Block (fg-ap-auf) — seine Teile kommen einzeln. */
 html .fg.fg.vk-seite.kino .vk-konfig-sek[data-an] .fg-kopf { opacity: 1; transform: none; animation: none; }
-html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="0"] :is(.fg-kopf .fg-auge, .fg-kopf .fg-lead, .kn-w, .vk-konfig, .kn-licht, .kn-scheibe) { opacity: 0; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="0"] :is(.fg-kopf .fg-auge, .vk-konfig, .kn-licht, .kn-scheibe) { opacity: 0; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="0"] .kn-w { opacity: .3; transform: translate3d(0, .5em, 0); filter: blur(10px); }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="0"] .fg-kopf .fg-lead { opacity: .3; transform: translate3d(0, 18px, 0); }
 html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-licht { animation: kn-licht-an 2.4s var(--kn-aus) backwards; }
 html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-licht.b { animation-delay: .12s; }
 html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-licht.c { animation-delay: .3s; }
@@ -635,13 +643,14 @@ html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-w {
   animation: kn-wort 1.1s var(--kn-aus) calc(.2s + var(--w, 0) * 55ms) backwards,
              kn-wort-licht 1.5s ease-in-out calc(1.15s + var(--w, 0) * 75ms) backwards;
 }
-html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .fg-kopf .fg-lead { animation: kn-ein 1s var(--kn-aus) .5s backwards; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .fg-kopf .fg-lead { animation: kn-lead 1s var(--kn-aus) .5s backwards; }
 html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .vk-konfig { animation: kn-rechner 1.5s var(--kn-aus) .62s backwards; }
 @keyframes kn-rechner { from { opacity: 0; transform: perspective(1600px) translate3d(0, 70px, 0) rotateX(12deg) scale(.95); } to { opacity: 1; transform: perspective(1600px) translate3d(0, 0, 0) rotateX(0deg) scale(1); } }
 /* Die Scheiben sitzen hier rechts oben neben dem Kopf. */
 html .fg.fg.vk-seite.kino .kn-scheibe.a { left: auto; right: max(4vw, calc(50% - 620px)); top: 96px; }
 html .fg.fg.vk-seite.kino .kn-scheibe.b { left: max(3vw, calc(50% - 660px)); top: 46%; }
 @media (max-width: 720px) {
+  html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="0"] .kn-w { filter: none; transform: translate3d(0, .45em, 0); }
   html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-w {
     animation: kn-wort-ruhig .95s var(--kn-aus) calc(.2s + var(--w, 0) * 46ms) backwards,
                kn-wort-licht 1.5s ease-in-out calc(1s + var(--w, 0) * 70ms) backwards;
@@ -684,8 +693,9 @@ html .fg.fg.kino .fd-mobil a.hell { background: rgba(255, 255, 255, .7); color: 
                kn-wort-licht 1.5s ease-in-out calc(1.1s + var(--w, 0) * 70ms) backwards;
   }
   html .fg.fg.fd.kino .fd-abschnitt[data-an="0"] { transform: translate3d(0, 40px, 0) scale(.98); }
+  html .fg.fg.fd.kino .fd-kopf[data-kino="0"] .kn-w { filter: none; transform: translate3d(0, .45em, 0); }
 }
-@keyframes kn-wort-ruhig { from { opacity: 0; transform: translate3d(0, .45em, 0); } }
+@keyframes kn-wort-ruhig { from { opacity: .3; transform: translate3d(0, .45em, 0); } }
 @media (max-width: 380px) {
   html .fg.fg.fd.kino .fd-text.neu > .fd-abschnitt:not(.fd-rand) { padding: 26px 18px 28px; }
 }

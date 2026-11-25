@@ -16,7 +16,7 @@
 // shared/fiaon-global-saetze.ts; hier wird keiner getippt. Kein Inline-Stil mehr — alles in styles/global-apple.css (.lp-).
 // Der Kalender lädt erst auf Wunsch (wie auf den Unterseiten), die Seite bleibt damit leicht.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GespraechKarte from "@/components/site/global-seite/GespraechKarte";
 import Merkblatt from "@/components/site/global-seite/Merkblatt";
@@ -93,7 +93,8 @@ export default function GlobalLandingPage() {
   useGlasZeiger(wurzel);
   const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");
   // Wie die Business-Seiten: Das Dokument scrollt (styles/global-rahmen.css, fg-dokument); die Browserleiste am Handy ist hell.
-  useEffect(() => {
+  // E-533: vor dem ersten Bild (useLayoutEffect) — sonst sprang die Seite nach dem ersten Bild hoch (CLS live 0,26).
+  useLayoutEffect(() => {
     document.documentElement.classList.add("fg-dokument");
     const m = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const alt = m?.getAttribute("content") || "";
